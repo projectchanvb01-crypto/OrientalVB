@@ -1,0 +1,33 @@
+{
+  "name": "oriental-digital-ecosystem",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Oriental Digital Ecosystem Monorepo (PWA POS, Supply Chain, CRM & SAK Accounting)",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspaces --if-present",
+    "dev:web": "npm run dev --workspace=apps/web",
+    "dev:api": "npm run dev --workspace=apps/api",
+    "build": "npm run build --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "format": "prettier --write \"**/*.{ts,tsx,js,json,md}\"",
+    "db:generate": "npm run generate --workspace=packages/database",
+    "db:push": "npm run push --workspace=packages/database",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down"
+  },
+  "keywords": [
+    "oriental-ecosystem",
+    "pos",
+    "pwa",
+    "crm",
+    "sak-accounting",
+    "b2b",
+    "b2c"
+  ],
+  "author": "Oriental Ecosystem Team",
+  "license": "UNLICENSED"
+}

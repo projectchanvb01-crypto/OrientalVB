@@ -1,0 +1,58 @@
+services:
+  # Primary Relational Database (Strict ACID for SAK Accounting & Stock Ledger)
+  postgres:
+    image: postgres:16-alpine
+    container_name: oriental_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: oriental_admin
+      POSTGRES_PASSWORD: oriental_secret_password_2026
+      POSTGRES_DB: oriental_ecosystem_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U oriental_admin -d oriental_ecosystem_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis for Fast In-Memory Caching & BullMQ Queue Processing
+  redis:
+    image: redis:7-alpine
+    container_name: oriental_redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass redis_secret_oriental
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "redis_secret_oriental", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # MinIO (Local S3-Compatible Storage for LMS Videos, Receipts, & Barcodes)
+  minio:
+    image: minio/minio:latest
+    container_name: oriental_minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minio_oriental
+      MINIO_ROOT_PASSWORD: minio_secret_key_2026
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  minio_data:
+    driver: local

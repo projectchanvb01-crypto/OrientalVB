@@ -1,0 +1,334 @@
+// Prisma Schema for Oriental Digital Ecosystem
+// Database: PostgreSQL 16+ (Strict ACID Compliance for SAK Accounting)
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ==========================================
+// 1. Tenants & Hierarchical User Management
+// ==========================================
+enum Role {
+  SUPER_ADMIN
+  ADMIN_MANAGER
+  ADMIN_PURCHASING
+  ADMIN_KASIR
+  OPERATOR_WASTE
+  STAFF_GUDANG
+}
+
+model Tenant {
+  id          String   @id @default(uuid())
+  name        String
+  legalName   String?
+  taxIdNpwp   String?
+  phone       String
+  address     String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users        User[]
+  products     Product[]
+  transactions Transaction[]
+  accounts     LedgerAccount[]
+
+  @@map("tenants")
+}
+
+model User {
+  id            String   @id @default(uuid())
+  tenantId      String
+  tenant        Tenant   @relation(fields: [tenantId], references: [id])
+  name          String
+  email         String   @unique
+  passwordHash  String
+  phone         String
+  role          Role     @default(ADMIN_KASIR)
+  
+  // Multi-tier Delegation Hierarchy
+  delegatedById String?
+  delegatedBy   User?    @relation("UserDelegation", fields: [delegatedById], references: [id])
+  subordinates  User[]   @relation("UserDelegation")
+
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  cashierTransactions Transaction[]
+  wasteTransactions   WasteTransaction[]
+
+  @@map("users")
+}
+
+// ==========================================
+// 2. Member One Identity & CRM
+// ==========================================
+enum SegmentType {
+  B2C_RETAIL
+  B2B_GROSIR
+  B2B_HOTEL
+  B2B_CAFE
+  B2B_WARUNG
+  B2B_COFFEESHOP
+  B2B_RESTAURANT
+  MITRA_WASTE
+  MITRA_WHITE_LABEL
+}
+
+model Member {
+  id               String      @id @default(uuid())
+  memberCode       String      @unique // Unique Barcode & QR String
+  fullName         String
+  phone            String      @unique // WhatsApp contact for OTP & receipt
+  email            String?
+  nikKtp           String?
+  businessName     String?
+  segment          SegmentType @default(B2C_RETAIL)
+  address          String?
+
+  totalPoints      Int         @default(0)
+  totalSpendMonth  Decimal     @default(0) @db.Decimal(14, 2)
+  isActive         Boolean     @default(true)
+  registeredAt     DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  coupons          DoorprizeCoupon[]
+  transactions     Transaction[]
+  wasteSales       WasteTransaction[]
+
+  // Referral relationships
+  referrerOfBusiness ReferralRelation[] @relation("BusinessReferrer")
+  refereeOfBusiness  ReferralRelation[] @relation("BusinessReferee")
+  earnedCommissions  CommissionPayout[]
+
+  @@map("members")
+}
+
+model DoorprizeCoupon {
+  id             String   @id @default(uuid())
+  couponCode     String   @unique
+  memberId       String
+  member         Member   @relation(fields: [memberId], references: [id])
+  transactionId  String
+  periodMonth    String   // Format: YYYY-MM
+  isWinner       Boolean  @default(false)
+  issuedAt       DateTime @default(now())
+
+  @@map("doorprize_coupons")
+}
+
+// ==========================================
+// 3. Products & Multi-Tier Pricing
+// ==========================================
+model Product {
+  id             String   @id @default(uuid())
+  tenantId       String
+  tenant         Tenant   @relation(fields: [tenantId], references: [id])
+  sku            String   @unique
+  barcode        String   @unique
+  name           String
+  category       String
+  unit           String   // Pcs, Dus, Bal, Kg, Liter
+  stockQty       Decimal  @default(0) @db.Decimal(12, 2)
+  bufferStockMin Decimal  @default(10) @db.Decimal(12, 2)
+  hppCost        Decimal  @default(0) @db.Decimal(14, 2) // Recipe Cost / Modal
+  
+  // Multi-tier Prices
+  retailPrice       Decimal @default(0) @db.Decimal(14, 2)
+  grosirDusPrice    Decimal @default(0) @db.Decimal(14, 2)
+  grosirBalPrice    Decimal @default(0) @db.Decimal(14, 2)
+  ukmHotelPrice     Decimal @default(0) @db.Decimal(14, 2)
+  ukmCafePrice      Decimal @default(0) @db.Decimal(14, 2)
+  ukmWarungPrice    Decimal @default(0) @db.Decimal(14, 2)
+  ukmCoffeeshopPrice Decimal @default(0) @db.Decimal(14, 2)
+  ukmRestoPrice     Decimal @default(0) @db.Decimal(14, 2)
+
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  transactionItems TransactionItem[]
+
+  @@map("products")
+}
+
+// ==========================================
+// 4. POS Transactions (Retail & Grosir)
+// ==========================================
+enum TransactionChannel {
+  RETAIL_B2C
+  GROSIR_B2B
+  UKM_SUPPLY
+  WASTE_PURCHASE
+  WHITE_LABEL
+}
+
+enum PaymentType {
+  CASH
+  QRIS_DYNAMIC
+  BANK_TRANSFER
+  DEBIT_CREDIT
+  TERMS_OF_PAYMENT
+}
+
+model Transaction {
+  id              String             @id @default(uuid())
+  tenantId        String
+  tenant          Tenant             @relation(fields: [tenantId], references: [id])
+  invoiceNumber   String             @unique
+  channel         TransactionChannel @default(RETAIL_B2C)
+  cashierId       String
+  cashier         User               @relation(fields: [cashierId], references: [id])
+  memberId        String?
+  member          Member?            @relation(fields: [memberId], references: [id])
+
+  subtotal        Decimal            @db.Decimal(14, 2)
+  discountTotal   Decimal            @default(0) @db.Decimal(14, 2)
+  grandTotal      Decimal            @db.Decimal(14, 2)
+  paidAmount      Decimal            @db.Decimal(14, 2)
+  changeAmount    Decimal            @default(0) @db.Decimal(14, 2)
+  paymentType     PaymentType        @default(CASH)
+
+  pointsAwarded   Int                @default(0)
+  couponsAwarded  Int                @default(0)
+  notaPrinted3Ply Boolean            @default(false)
+
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  items           TransactionItem[]
+  journalEntry    JournalEntry?
+
+  @@map("transactions")
+}
+
+model TransactionItem {
+  id             String      @id @default(uuid())
+  transactionId  String
+  transaction    Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  productId      String
+  product        Product     @relation(fields: [productId], references: [id])
+  quantity       Decimal     @db.Decimal(12, 2)
+  unitPrice      Decimal     @db.Decimal(14, 2)
+  discountAmount Decimal     @default(0) @db.Decimal(14, 2)
+  subtotal       Decimal     @db.Decimal(14, 2)
+
+  @@map("transaction_items")
+}
+
+// ==========================================
+// 5. Waste Purchasing & Profit Sharing
+// ==========================================
+model WasteTransaction {
+  id                    String   @id @default(uuid())
+  receiptNumber         String   @unique
+  sellerMemberId        String
+  sellerMember          Member   @relation(fields: [sellerMemberId], references: [id])
+  operatorId            String
+  operator              User     @relation(fields: [operatorId], references: [id])
+  locationPartnerName   String   // Drop Point / Penyedia Tempat
+  wasteType             String   // Minyak Jelantah, Kardus, Plastik
+  weightKg              Decimal  @db.Decimal(10, 2)
+  pricePerKg            Decimal  @db.Decimal(12, 2)
+  totalCostPaid         Decimal  @db.Decimal(14, 2)
+  partnerSharePct       Decimal  @default(10) @db.Decimal(5, 2)
+  partnerShareAmount    Decimal  @db.Decimal(14, 2)
+  pointsAwarded         Int      @default(0)
+  createdAt             DateTime @default(now())
+
+  @@map("waste_transactions")
+}
+
+// ==========================================
+// 6. Referral & Affiliate System
+// ==========================================
+enum ReferralKind {
+  BUSINESS_PARTNER // 0.5% (Min 60m own spend, min 30m referee spend)
+  INFLUENCER       // 1.0% per product promotion
+}
+
+model ReferralRelation {
+  id           String   @id @default(uuid())
+  referrerId   String
+  referrer     Member   @relation("BusinessReferrer", fields: [referrerId], references: [id])
+  refereeId    String   @unique
+  referee      Member   @relation("BusinessReferee", fields: [refereeId], references: [id])
+  isActive     Boolean  @default(true)
+  registeredAt DateTime @default(now())
+
+  @@map("referral_relations")
+}
+
+model CommissionPayout {
+  id            String       @id @default(uuid())
+  memberId      String
+  member        Member       @relation(fields: [memberId], references: [id])
+  kind          ReferralKind
+  sourceAmount  Decimal      @db.Decimal(14, 2)
+  commissionPct Decimal      @db.Decimal(5, 2)
+  payoutAmount  Decimal      @db.Decimal(14, 2)
+  isDisbursed   Boolean      @default(false)
+  createdAt     DateTime     @default(now())
+
+  @@map("commission_payouts")
+}
+
+// ==========================================
+// 7. SAK Accounting & Double-Entry Ledger
+// ==========================================
+enum AccountClass {
+  ASSET       // 1-xxxx (Kas, Piutang, Persediaan Barang, Persediaan Limbah)
+  LIABILITY   // 2-xxxx (Utang Usaha, Utang Bagi Hasil Tempat, Utang Komisi)
+  EQUITY      // 3-xxxx (Modal Usaha, Saldo Laba Ditahan)
+  REVENUE     // 4-xxxx (Pendapatan Retail, Grosir, UKM Supply)
+  COGS        // 5-xxxx (HPP Penjualan)
+  EXPENSE     // 6-xxxx (Beban Operasional, Komisi Referral, Transport)
+}
+
+model LedgerAccount {
+  id          String        @id @default(uuid())
+  tenantId    String
+  tenant      Tenant        @relation(fields: [tenantId], references: [id])
+  accountCode String        @unique // e.g. "1-1001" for Kas Utama
+  name        String
+  accountClass AccountClass
+  balance     Decimal       @default(0) @db.Decimal(16, 2)
+  isActive    Boolean       @default(true)
+
+  journalLines JournalLine[]
+
+  @@map("ledger_accounts")
+}
+
+model JournalEntry {
+  id            String       @id @default(uuid())
+  transactionId String?      @unique
+  transaction   Transaction? @relation(fields: [transactionId], references: [id])
+  entryNumber   String       @unique
+  entryDate     DateTime     @default(now())
+  description   String
+  totalDebit    Decimal      @db.Decimal(16, 2)
+  totalCredit   Decimal      @db.Decimal(16, 2) // Must equal totalDebit (SAK Balance)
+
+  lines         JournalLine[]
+
+  @@map("journal_entries")
+}
+
+model JournalLine {
+  id             String        @id @default(uuid())
+  journalEntryId String
+  journalEntry   JournalEntry  @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+  accountId      String
+  account        LedgerAccount @relation(fields: [accountId], references: [id])
+  debit          Decimal       @default(0) @db.Decimal(16, 2)
+  credit         Decimal       @default(0) @db.Decimal(16, 2)
+
+  @@map("journal_lines")
+}
