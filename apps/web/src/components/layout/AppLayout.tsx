@@ -5,8 +5,8 @@ import { Header } from './Header';
 interface AppLayoutProps {
   activeTab: NavTabId;
   setActiveTab: (tab: NavTabId) => void;
-  currentUserRole: 'SUPER_ADMIN' | 'ADMIN_MANAGER' | 'ADMIN_KASIR';
-  setCurrentUserRole: (role: 'SUPER_ADMIN' | 'ADMIN_MANAGER' | 'ADMIN_KASIR') => void;
+  currentUserRole: 'SUPER_ADMIN' | 'ADMIN_MANAGER' | 'REGIONAL_MANAGER' | 'ADMIN_KASIR';
+  setCurrentUserRole: (role: any) => void;
   children: React.ReactNode;
 }
 
@@ -17,7 +17,8 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   setCurrentUserRole,
   children,
 }) => {
-  const isPosTab = activeTab === 'RETAIL' || activeTab === 'GROSIR';
+  const isPosTab = activeTab === 'RETAIL' || activeTab === 'GROSIR' || activeTab === 'PRICE_CHECKER';
+  const isStandalonePos = activeTab === 'RETAIL' || activeTab === 'GROSIR';
   const [isCollapsed, setIsCollapsed] = useState(isPosTab);
 
   return (
@@ -34,9 +35,9 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
 
       {/* Main Content Viewport */}
       <div className={`flex-1 flex flex-col min-w-0 h-screen ${isPosTab ? 'overflow-hidden' : 'overflow-y-auto'}`}>
-        <Header activeTab={activeTab} />
+        {!isStandalonePos && <Header activeTab={activeTab} />}
 
-        <main className={`flex-1 w-full mx-auto ${isPosTab ? 'p-3 sm:p-5 overflow-hidden flex flex-col max-w-[1800px]' : 'max-w-[1550px] p-4 sm:p-6 space-y-6'}`}>
+        <main className={`flex-1 w-full mx-auto ${isStandalonePos ? 'p-2 sm:p-3 overflow-hidden flex flex-col max-w-[1920px] h-full' : isPosTab ? 'p-3 sm:p-5 overflow-hidden flex flex-col max-w-[1800px]' : 'max-w-[1550px] p-4 sm:p-6 space-y-6'}`}>
           {children}
         </main>
 

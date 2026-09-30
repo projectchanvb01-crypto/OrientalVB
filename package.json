@@ -8,9 +8,14 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "npm run dev --workspaces --if-present",
+    "dev": "concurrently -n \"api,web\" -c \"blue,green\" \"npm run dev:api\" \"npm run dev:web\"",
     "dev:web": "npm run dev --workspace=apps/web",
     "dev:api": "npm run dev --workspace=apps/api",
+    "dev:pos": "npm run dev --workspace=@oriental/pos",
+    "dev:hub": "npm run dev --workspace=@oriental/hub",
+    "dev:admin": "npm run dev --workspace=@oriental/admin",
+    "dev:trifecta": "concurrently -n \"api,pos,hub,admin\" -c \"blue,green,magenta,cyan\" \"npm run dev:api\" \"npm run dev:pos\" \"npm run dev:hub\" \"npm run dev:admin\"",
+    "dev:all": "concurrently -n \"api,web,pos,hub,admin\" -c \"blue,yellow,green,magenta,cyan\" \"npm run dev:api\" \"npm run dev:web\" \"npm run dev:pos\" \"npm run dev:hub\" \"npm run dev:admin\"",
     "build": "npm run build --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
     "format": "prettier --write \"**/*.{ts,tsx,js,json,md}\"",
@@ -29,5 +34,8 @@
     "b2c"
   ],
   "author": "Oriental Ecosystem Team",
-  "license": "UNLICENSED"
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "concurrently": "^10.0.5"
+  }
 }

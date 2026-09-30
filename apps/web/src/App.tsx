@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Store, Lock } from 'lucide-react';
 import { RetailPOS } from './pages/RetailPOS';
+import { PriceCheckerStation } from './pages/PriceCheckerStation';
 import { GrosirPOS } from './pages/GrosirPOS';
 import { WastePurchasingPOS } from './pages/WastePurchasingPOS';
 import { WhiteLabelPortal } from './pages/WhiteLabelPortal';
@@ -8,6 +9,10 @@ import { MemberPortal } from './pages/MemberPortal';
 import { AccountingDashboard } from './pages/AccountingDashboard';
 import { EcosystemHub } from './pages/EcosystemHub';
 import { UkmSupplyPortal } from './pages/UkmSupplyPortal';
+import { MultiOutletManagement } from './pages/MultiOutletManagement';
+import { InventoryControl } from './pages/InventoryControl';
+import { LandedCostLogistics } from './pages/LandedCostLogistics';
+import { EscrowPayLedger } from './pages/EscrowPayLedger';
 import { EcosystemProvider, useEcosystem } from './context/EcosystemContext';
 import { AppLayout } from './components/layout/AppLayout';
 import { NavTabId } from './components/layout/Sidebar';
@@ -15,19 +20,26 @@ import { NavTabId } from './components/layout/Sidebar';
 // URL Routing mapping
 const getTabFromPath = (path: string): NavTabId => {
   const clean = path.toLowerCase().replace(/\/+$/, '') || '/';
+  if (clean.includes('price-checker') || clean.includes('cek-harga') || clean.includes('kiosk')) return 'PRICE_CHECKER';
   if (clean.includes('waste') || clean.includes('limbah') || clean.includes('jelantah')) return 'WASTE';
   if (clean.includes('white-label') || clean.includes('whitelabel') || clean.includes('maklon')) return 'WHITELABEL';
   if (clean.includes('ukm') || clean.includes('supply') || clean.includes('referral') || clean.includes('standing')) return 'UKM_SUPPLY';
   if (clean.includes('member')) return 'MEMBERS';
   if (clean.includes('grosir')) return 'GROSIR';
+  if (clean.includes('landed') || clean.includes('logistik') || clean.includes('laut')) return 'LANDED_COST';
+  if (clean.includes('inventory') || clean.includes('fefo') || clean.includes('umur') || clean.includes('wms') || clean.includes('gudang')) return 'INVENTORY_CONTROL';
+  if (clean.includes('outlet') || clean.includes('cabang') || clean.includes('transfer')) return 'MULTI_OUTLET';
   if (clean.includes('accounting') || clean.includes('keuangan')) return 'ACCOUNTING';
   if (clean.includes('ecosystem') || clean.includes('hub')) return 'ECOSYSTEM';
+  if (clean.includes('escrow') || clean.includes('ledger') || clean.includes('pay-ledger')) return 'ESCROW_LEDGER';
   if (clean.includes('retail') || clean === '/') return 'RETAIL';
   return 'RETAIL';
 };
 
 const getPathFromTab = (tab: NavTabId): string => {
   switch (tab) {
+    case 'PRICE_CHECKER':
+      return '/price-checker';
     case 'WASTE':
       return '/waste';
     case 'WHITELABEL':
@@ -38,10 +50,18 @@ const getPathFromTab = (tab: NavTabId): string => {
       return '/members';
     case 'GROSIR':
       return '/grosir';
+    case 'MULTI_OUTLET':
+      return '/multi-outlet';
+    case 'INVENTORY_CONTROL':
+      return '/inventory-control';
+    case 'LANDED_COST':
+      return '/landed-cost';
     case 'ACCOUNTING':
       return '/accounting';
     case 'ECOSYSTEM':
       return '/ecosystem';
+    case 'ESCROW_LEDGER':
+      return '/escrow-ledger';
     case 'RETAIL':
     default:
       return '/retail-pos';
@@ -85,8 +105,8 @@ const AppContent: React.FC = () => {
     getTabFromPath(window.location.pathname),
   );
 
-  const currentUserRole = currentUser.role as 'SUPER_ADMIN' | 'ADMIN_MANAGER' | 'ADMIN_KASIR';
-  const setCurrentUserRole = (role: 'SUPER_ADMIN' | 'ADMIN_MANAGER' | 'ADMIN_KASIR') => {
+  const currentUserRole = currentUser.role as 'SUPER_ADMIN' | 'ADMIN_MANAGER' | 'REGIONAL_MANAGER' | 'ADMIN_KASIR';
+  const setCurrentUserRole = (role: any) => {
     const matchedUser = systemUsers.find((u) => u.role === (role as any)) || {
       ...currentUser,
       role: role as any,
@@ -122,6 +142,7 @@ const AppContent: React.FC = () => {
       setCurrentUserRole={setCurrentUserRole}
     >
       {activeTab === 'RETAIL' && <RetailPOS />}
+      {activeTab === 'PRICE_CHECKER' && <PriceCheckerStation />}
       {activeTab === 'GROSIR' && <GrosirPOS />}
       {activeTab === 'WASTE' && <WastePurchasingPOS />}
       {activeTab === 'MEMBERS' && <MemberPortal />}
@@ -149,6 +170,36 @@ const AppContent: React.FC = () => {
 
       {activeTab === 'UKM_SUPPLY' && <UkmSupplyPortal />}
 
+      {activeTab === 'MULTI_OUTLET' &&
+        (isKasir ? (
+          <ManagerialAccessBlocked
+            menuName="Multi-Outlet & Tata Kelola Cabang"
+            onReturn={() => setActiveTab('RETAIL')}
+          />
+        ) : (
+          <MultiOutletManagement />
+        ))}
+
+      {activeTab === 'INVENTORY_CONTROL' &&
+        (isKasir ? (
+          <ManagerialAccessBlocked
+            menuName="Inventory Control & Umur Barang"
+            onReturn={() => setActiveTab('RETAIL')}
+          />
+        ) : (
+          <InventoryControl />
+        ))}
+
+      {activeTab === 'LANDED_COST' &&
+        (isKasir ? (
+          <ManagerialAccessBlocked
+            menuName="Landed Cost Laut & Pengadaan"
+            onReturn={() => setActiveTab('RETAIL')}
+          />
+        ) : (
+          <LandedCostLogistics />
+        ))}
+
       {activeTab === 'ECOSYSTEM' &&
         (isKasir ? (
           <ManagerialAccessBlocked
@@ -157,6 +208,16 @@ const AppContent: React.FC = () => {
           />
         ) : (
           <EcosystemHub />
+        ))}
+
+      {activeTab === 'ESCROW_LEDGER' &&
+        (isKasir ? (
+          <ManagerialAccessBlocked
+            menuName="Escrow & Pay Ledger"
+            onReturn={() => setActiveTab('RETAIL')}
+          />
+        ) : (
+          <EscrowPayLedger />
         ))}
     </AppLayout>
   );

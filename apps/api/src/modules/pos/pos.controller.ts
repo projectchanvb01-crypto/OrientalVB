@@ -40,4 +40,16 @@ export class PosController {
       body.dueDateStr,
     );
   }
+
+  @Post('sync-offline')
+  @ApiOperation({ summary: 'Batch sinkronisasi transaksi offline dari PWA Dexie.js (Anti-Duplikasi)' })
+  syncOffline(
+    @Body()
+    body: {
+      transactions: any[];
+      terminalId?: string;
+    },
+  ) {
+    return this.posService.syncOfflineTransactions(body.transactions || [], body.terminalId);
+  }
 }

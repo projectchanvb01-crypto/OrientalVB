@@ -39,6 +39,11 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api/docs', app, document);
 
+  // Root redirect to Swagger Documentation
+  app.getHttpAdapter().get('/', (_req: any, res: any) => {
+    res.redirect('/api/docs');
+  });
+
   const port = process.env.PORT || 4000;
   await app.listen(port);
   logger.log(`🚀 Oriental Ecosystem API server running on: http://localhost:${port}/api/v1`);

@@ -7,6 +7,7 @@
 // ==========================================
 export enum UserRole {
   SUPER_ADMIN = 'SUPER_ADMIN',         // Business Owner
+  REGIONAL_MANAGER = 'REGIONAL_MANAGER', // Regional Manager / Wilayah (§8 Addendum)
   ADMIN_MANAGER = 'ADMIN_MANAGER',     // Business Manager / PIC
   ADMIN_PURCHASING = 'ADMIN_PURCHASING', // Purchasing / Pengadaan
   ADMIN_KASIR = 'ADMIN_KASIR',         // Cashier (Strictly isolated)
@@ -94,9 +95,32 @@ export interface PointMutationRecord {
   couponsEarned: number;
 }
 
+export enum CustomerTier {
+  REGULER = 'REGULER',     // < Rp 10 Juta / bln (Default)
+  BRONZE = 'BRONZE',       // Rp 10 Jt - Rp 20 Jt / bln
+  SILVER = 'SILVER',       // Rp 20 Jt - Rp 40 Jt / bln
+  GOLD = 'GOLD',           // Rp 40 Jt - Rp 70 Jt / bln (+10% Poin)
+  PLATINUM = 'PLATINUM',   // > Rp 70 Jt / bln (Diskon Ekstra 1% & +15% Poin)
+}
+
+export interface OrientalPayTransactionRecord {
+  id: string;
+  memberId?: string;
+  date?: string;
+  type: 'CREDIT' | 'DEBIT' | 'REFERRAL_COMMISSION' | 'WASTE_PAYOUT' | 'TOPUP' | 'PURCHASE_PAYMENT';
+  amount: number;
+  source?: 'REFERRAL_COMMISSION' | 'CASHBACK' | 'WASTE_PAYMENT' | 'PURCHASE_PAYMENT' | 'INITIAL_CREDIT';
+  description: string;
+  channel?: string;
+  referenceId?: string;
+  referenceInvoice?: string;
+  balanceAfter: number;
+  createdAt?: string;
+}
+
 export interface MemberOneIdentity {
   id: string;
-  memberCode: string;      // Format standar: daearah - YYMMDD - Urutan (e.g. 102-260820-01)
+  memberCode: string;      // Format standar: daerah - YYMMDD - Urutan (e.g. 102-260820-01)
   barcode: string;         // Barcode kartu fisik (e.g. 82000080)
   fullName: string;        // Nama Lengkap Pemilik
   nik?: string;            // Nomor KTP (NIK)
@@ -115,6 +139,25 @@ export interface MemberOneIdentity {
   doorprizeCouponsCount: number;
   doorprizeCoupons?: string[]; // Array nomor kupon undian aktif (e.g. DPZ-202609-001)
   pointHistory?: PointMutationRecord[];
+  
+  // Sprint 7 Additions: Customer Tier & Closed-Loop Oriental Pay
+  currentTier?: CustomerTier;
+  rolling3MonthAvgSpend?: number;
+  monthlySpendsRecent?: number[]; // [Month-1, Month-2, Month-3]
+  tierEvaluatedAt?: string;
+  tierExpiresAt?: string;
+  downgradeWarning?: boolean;
+  orientalPayBalance?: number; // Saldo dompet tertutup (closed-loop)
+  orientalPayHistory?: OrientalPayTransactionRecord[];
+  influencerAffiliateCode?: string;
+
+  // Sprint 9 Additions: TOP Credit Plafon & Overdue Lock (PRD §8.1 & §2.5)
+  creditLimit?: number;                  // Plafon kredit B2B TOP (Rupiah)
+  currentOutstandingReceivables?: number; // Total piutang berjalan belum lunas
+  hasOverdueInvoices?: boolean;           // Ada faktur yang melewati jatuh tempo
+  overdueInvoiceNumbers?: string[];       // Rincian nomor faktur tertunggak
+  topAllowedDays?: number;               // Tenor TOP maksimal yang disetujui (7, 14, 30)
+
   isActive: boolean;
   registeredAt: Date;
 }
@@ -232,6 +275,13 @@ export interface ProductWithMultiUnit {
   ukmCoffeeshopPrice?: number;
   balMultiplier?: number; // e.g. 1 bal = multiple packs
   paletMultiplier?: number; // e.g. 1 palet = multiple dus (e.g. 20-40 dus)
+
+  // Sprint 7 Additions: Maklon End-Customer Tracking
+  maklonPartnerId?: string; // ID of White Label / Maklon partner
+  isMaklonProduct?: boolean; // If true, earns 1 point per Rp 10.000 instead of Rp 100.000
+
+  // Sprint 9 Additions: Flexible Segment Price List Engine (PRD Addendum §10)
+  segmentPrices?: ProductSegmentPrice[];
 }
 
 export interface B2BOrderItem {
@@ -284,6 +334,7 @@ export enum PaymentMethod {
   BANK_TRANSFER = 'BANK_TRANSFER',
   DEBIT_CREDIT = 'DEBIT_CREDIT',
   TERMS_OF_PAYMENT = 'TERMS_OF_PAYMENT', // TOP for B2B
+  ORIENTAL_PAY = 'ORIENTAL_PAY',         // Closed-loop internal e-wallet (Sprint 7)
 }
 
 export interface CartItem {
@@ -347,6 +398,7 @@ export interface WasteCategoryRate {
   description: string;
   minQualityNotes: string;
   isActive: boolean;
+  isComingSoon?: boolean;
 }
 
 export interface WastePurchaseRecord {
@@ -365,12 +417,34 @@ export interface WastePurchaseRecord {
   factorySellingPricePerKg: number;
   totalCostPaid: number;
   grossMargin: number;
-  partnerProfitSharePct: number; // 10%
+  partnerProfitSharePct: number; // 5% flat dari harga beli
   partnerEarnedAmount: number;
   pointsAwarded: number; // 1 kg = 1 Poin
   qualityGrade: 'SUPER' | 'STANDAR' | 'KERUH';
   notes?: string;
   createdAt: Date;
+}
+
+export interface WastePartnerSettlementClaim {
+  id: string;
+  claimNumber: string;
+  partnerId: string;
+  partnerName: string;
+  periodLabel?: string;
+  periodMonth?: string;
+  totalKgCollected: number;
+  totalCustomerPaid?: number;
+  totalCustomerPayout?: number;
+  profitShareRatePct?: number; // 5% flat (Addendum v2.1)
+  profitSharePct?: number;
+  settlementAmount?: number;   // totalCustomerPaid * 0.05
+  claimAmount?: number;
+  status: 'PENDING_MANUAL_TRANSFER' | 'TRANSFERRED' | 'CANCELLED' | 'APPROVED' | 'PAID';
+  proofDocumentUrl?: string;
+  settledAt?: string;
+  settledBy?: string;
+  notes?: string;
+  generatedAt?: Date;
 }
 
 // ==========================================
@@ -491,6 +565,30 @@ export interface ReferralCommission {
   commissionAmount: number;
   isPaidOut: boolean;
   createdAt: Date;
+}
+
+export interface InfluencerProductLink {
+  id: string;
+  influencerId?: string;
+  influencerName?: string;
+  memberId?: string;
+  affiliateCode?: string;
+  productId: string;
+  productName: string;
+  productPrice?: number;
+  referralCode?: string;
+  referralUrl?: string;
+  shareUrl?: string;
+  totalClicks?: number;
+  clicksCount?: number;
+  totalSalesQty?: number;
+  salesCount?: number;
+  totalSalesAmount?: number;
+  commissionEarned?: number;
+  totalCommissionEarned?: number;
+  commissionRatePct?: number; // 1.0% flat
+  commissionPct?: number;
+  createdAt?: string | Date;
 }
 
 export interface CommissionWithdrawalRequest {
@@ -714,4 +812,337 @@ export interface WorkshopRegistrationDto {
   phone: string;
   businessName: string;
 }
+
+// ==========================================
+// 12. Sprint 8: Multi-Outlet, Stock Transfer & Regional Governance (PRD Addendum §8)
+// ==========================================
+export interface OutletBusinessLineMatrix {
+  hasRetail: boolean;      // Retail Swalayan
+  hasGrosir: boolean;      // Grosir Sembako & B2B
+  hasUkmSupply: boolean;   // Pasokan Rutin UKM HOREKA
+  hasWaste: boolean;       // Penampungan Minyak Jelantah
+  hasWhiteLabel: boolean;  // Display & Maklon Produk
+}
+
+export interface OutletLocation {
+  id: string;              // e.g. 'OUTLET-WATAMPONE-01'
+  code: string;            // 'WTP-01'
+  name: string;            // 'Oriental Pusat Watampone'
+  region: 'WATAMPONE' | 'MAKASSAR' | 'BONESELATAN';
+  address: string;
+  phone: string;
+  managerName: string;
+  isHeadquarters: boolean;
+  businessLines: OutletBusinessLineMatrix;
+  warehouseCapacityCbm: number;
+  isActive: boolean;
+  openedAt: string;
+}
+
+export type TransferStatus = 'DRAFT' | 'IN_TRANSIT' | 'RECEIVED' | 'CANCELLED';
+
+export interface InterStoreTransferItem {
+  productId: string;
+  productName: string;
+  variantUnitName: string;
+  quantity: number;
+  multiplierToBaseUnit: number;
+  baseUnitsTotal: number;
+}
+
+export interface InterStoreTransferRecord {
+  id: string;
+  transferNumber: string;        // 'TRF-202609-001'
+  sourceOutletId: string;
+  sourceOutletName: string;
+  targetOutletId: string;
+  targetOutletName: string;
+  status: TransferStatus;
+  items: InterStoreTransferItem[];
+  totalBaseUnits: number;
+  driverName?: string;
+  vehiclePlate?: string;
+  notes?: string;
+  dispatchedAt?: string;
+  receivedAt?: string;
+  receivedBy?: string;
+  dispatchedBy?: string;
+  createdAt: string;
+}
+
+export type PriceProposalStatus = 'SUBMITTED' | 'REVIEWED_BY_REGIONAL' | 'APPROVED_BY_OWNER' | 'REJECTED';
+
+export interface ProofAttachment {
+  id: string;
+  name: string;
+  url: string;
+  uploadedAt: string;
+}
+
+export interface BranchPriceProposal {
+  id: string;
+  proposalNumber: string;         // 'PRP-202609-001'
+  outletId: string;
+  outletName: string;
+  productId: string;
+  productName: string;
+  currentPrice: number;
+  proposedPrice: number;
+  proposalType: 'PRICE_DROP' | 'LOCAL_PROMO';
+  reason: string;
+  competitorName: string;
+  competitorPrice: number;
+  proofAttachments: ProofAttachment[]; // Minimum 4 files required by PRD Addendum §8.1
+  submittedBy: string;
+  submittedAt: string;
+  regionalReviewerId?: string;
+  regionalReviewNotes?: string;
+  regionalReviewedAt?: string;
+  ownerReviewerId?: string;
+  ownerReviewNotes?: string;
+  ownerReviewedAt?: string;
+  status: PriceProposalStatus;
+}
+
+// ==========================================
+// 13. Sprint 9: Flexible Price List Engine & 7 Operational Reports (PRD Addendum §9 & §10)
+// ==========================================
+
+export enum PricingSegmentType {
+  RETAIL_B2C = 'RETAIL_B2C',
+  UKM_KULINER = 'UKM_KULINER',
+  GROSIR_AGEN = 'GROSIR_AGEN',
+  HOREKA = 'HOREKA',           // Hotel, Restoran, Kafe
+  MAKLON_PARTNER = 'MAKLON_PARTNER',
+  DISTRIBUTOR = 'DISTRIBUTOR',
+}
+
+export interface ProductSegmentPrice {
+  id: string;
+  productId: string;
+  productName?: string;
+  segment: PricingSegmentType | string;
+  segmentLabel: string;
+  minOrderQty: number;
+  unit: string;
+  baseHpp: number;
+  markupPct: number;
+  sellingPrice: number;
+  effectiveDate: string;
+  notes?: string;
+  isActive: boolean;
+}
+
+// 7 Operational Reports Models (PRD Addendum §9)
+export interface DailySalesReportData {
+  date: string;
+  outletId: string;
+  outletName: string;
+  grossRevenue: number;
+  totalDiscount: number;
+  netRevenue: number;
+  transactionCount: number;
+  averageBasketValue: number;
+  totalItemsSold: number;
+  transactions: {
+    id: string;
+    time: string;
+    invoiceNumber: string;
+    cashierName: string;
+    channel: string;
+    itemCount: number;
+    grandTotal: number;
+    paymentMethod: string;
+    customerName?: string;
+  }[];
+}
+
+export interface CashierShiftReportData {
+  id: string;
+  shiftName: string; // 'Shift 1 (Pagi)' | 'Shift 2 (Siang/Sore)'
+  cashierId: string;
+  cashierName: string;
+  outletName: string;
+  openedAt: string;
+  closedAt: string;
+  openingCash: number;
+  cashSalesTotal: number;
+  nonCashSalesTotal: number;
+  pettyCashExpenses: number;
+  expectedCashInDrawer: number;
+  actualCashCounted: number;
+  difference: number;
+  status: 'BALANCED' | 'SHORTAGE' | 'OVERAGE';
+  notes?: string;
+}
+
+export interface PaymentMethodBreakdownData {
+  method: string;
+  label: string;
+  transactionCount: number;
+  totalVolume: number;
+  sharePercentage: number;
+  badgeColor: string;
+}
+
+export interface OutletSummaryReportData {
+  outletId: string;
+  outletCode: string;
+  outletName: string;
+  region: string;
+  revenue: number;
+  grossProfit: number;
+  transactionsCount: number;
+  activeBusinessLinesCount: number;
+  targetRevenue: number;
+  achievementPct: number;
+  shareOfTotalRevenuePct: number;
+}
+
+export interface FastMovingProductData {
+  productId: string;
+  productName: string;
+  category: string;
+  unitsSold: number;
+  unitName: string;
+  totalRevenue: number;
+  turnoverRatio: number; // e.g. 8.4x
+  velocityGrade: 'FAST_MOVING' | 'NORMAL' | 'SLOW_MOVING';
+  stockRemaining: number;
+}
+
+export interface PeriodRevenueData {
+  periodLabel: string; // e.g. 'Senin 20 Sep', 'Minggu 3', 'September 2026'
+  startDate: string;
+  endDate: string;
+  grossSales: number;
+  cogs: number;
+  grossMargin: number;
+  growthRatePct?: number;
+}
+
+export interface VoidAuditRecord {
+  id: string;
+  invoiceNumber: string;
+  originalAmount: number;
+  voidReason: string;
+  voidedAt: string;
+  cashierName: string;
+  approvedByManager: string;
+  restockedItems: {
+    name: string;
+    qty: number;
+    unit: string;
+  }[];
+  notes?: string;
+}
+
+// ==========================================
+// 12. Sprint 8: WMS, FEFO & Landed Cost Types
+// ==========================================
+
+export type BatchWarningLevel = 'GREEN' | 'AMBER' | 'RED';
+
+export interface ProductBatch {
+  id: string;
+  productId: string;
+  productName: string;
+  sku: string;
+  batchNumber: string;
+  expiryDate: string; // ISO string YYYY-MM-DD
+  stockQty: number;
+  costPrice: number;
+  warningLevel: BatchWarningLevel;
+  daysRemaining: number;
+  status: 'ACTIVE' | 'CLEARANCE_PROMO' | 'EXPIRED' | 'DEPLETED';
+  receivedDate: string;
+  supplierName?: string;
+}
+
+export interface DynamicUnitConversion {
+  id: string;
+  productId: string;
+  unitName: string; // e.g. "Dus 24", "Renceng 12", "Bal 10", "Karton 48"
+  multiplierQty: number; // e.g. 24, 12, 10, 48 base units
+  barcode?: string;
+  isDefaultB2b: boolean;
+  priceEstimate?: number;
+}
+
+export interface SupplierItem {
+  id: string;
+  name: string;
+  contactPerson?: string;
+  phone: string;
+  email?: string;
+  locationCity: string; // e.g. "Surabaya", "Jakarta", "Semarang", "Makassar"
+  isPkp: boolean;
+  npwp?: string;
+  leadTimeDays: number;
+  rating?: number;
+  isActive: boolean;
+}
+
+export interface ShippingRouteItem {
+  id: string;
+  supplierId?: string;
+  expeditionName: string; // e.g. "Pelni Logistik", "Meratus Line", "Samudera Indonesia"
+  originPort: string; // e.g. "Tanjung Perak (Surabaya)"
+  destinationPort: string; // e.g. "Soekarno-Hatta (Makassar)"
+  ratePerCbm: number; // Tarif per m3 dalam Rupiah
+  minCbm: number; // Minimal kubikasi
+  handlingFee: number; // Biaya bongkar muat port
+  truckingFee: number; // Biaya trucking darat ke gudang
+  estimatedDays: number;
+}
+
+export interface LandedCostInput {
+  productId?: string;
+  productName?: string;
+  lengthCm: number;
+  widthCm: number;
+  heightCm: number;
+  unitsPerCarton: number;
+  totalCartons: number;
+  factoryPricePerUnit: number;
+  supplierIsPkp: boolean;
+  shippingRouteId: string;
+}
+
+export interface LandedCostBreakdown {
+  cbmPerCarton: number;
+  totalCbm: number;
+  totalUnits: number;
+  totalFactoryCost: number;
+  seaFreightCost: number;
+  portHandlingCost: number;
+  truckingCost: number;
+  totalLogisticsCost: number;
+  logisticsCostPerUnit: number;
+  ppnMasukanPerUnit: number;
+  totalLandedCostPerUnit: number; // Factory + Logistics (+ PPN jika Non-PKP / non-creditable)
+  recommendedRetailPrice: number; // With default margin (e.g. 25%)
+  recommendedWholesalePrice: number; // With wholesale margin (e.g. 12%)
+  estimatedGrossProfitAtRetail: number;
+  marginPercentageAtRetail: number;
+}
+
+export interface SupplierComparisonItem {
+  supplierId: string;
+  supplierName: string;
+  locationCity: string;
+  isPkp: boolean;
+  factoryPrice: number;
+  routeTitle: string;
+  estimatedLeadTime: number;
+  logisticsCostPerUnit: number;
+  netLandedCostPerUnit: number;
+  retailPrice: number;
+  marginRp: number;
+  marginPct: number;
+  isRecommended: boolean;
+  recommendationReason: string;
+}
+
+
 

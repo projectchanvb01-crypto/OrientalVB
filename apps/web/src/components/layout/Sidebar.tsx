@@ -17,25 +17,34 @@ import {
   Factory,
   UtensilsCrossed,
   Lock,
+  ScanBarcode,
+  Building2,
+  Ship,
+  Vault,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useEcosystem } from '../../context/EcosystemContext';
 
 export type NavTabId =
   | 'RETAIL'
+  | 'PRICE_CHECKER'
   | 'GROSIR'
   | 'WASTE'
   | 'WHITELABEL'
   | 'UKM_SUPPLY'
   | 'MEMBERS'
+  | 'MULTI_OUTLET'
+  | 'INVENTORY_CONTROL'
+  | 'LANDED_COST'
   | 'ACCOUNTING'
-  | 'ECOSYSTEM';
+  | 'ECOSYSTEM'
+  | 'ESCROW_LEDGER';
 
 interface SidebarProps {
   activeTab: NavTabId;
   setActiveTab: (tab: NavTabId) => void;
-  currentUserRole: 'SUPER_ADMIN' | 'ADMIN_MANAGER' | 'ADMIN_KASIR';
-  setCurrentUserRole: (role: 'SUPER_ADMIN' | 'ADMIN_MANAGER' | 'ADMIN_KASIR') => void;
+  currentUserRole: 'SUPER_ADMIN' | 'ADMIN_MANAGER' | 'REGIONAL_MANAGER' | 'ADMIN_KASIR';
+  setCurrentUserRole: (role: any) => void;
   isCollapsed: boolean;
   setIsCollapsed: (collapsed: boolean) => void;
 }
@@ -63,7 +72,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isCollapsed,
   setIsCollapsed,
 }) => {
-  const { retailCart, member, financials, wasteHistory, standingOrders, currentUser, setCurrentUser, systemUsers } = useEcosystem();
+  const { retailCart, member, financials, wasteHistory, standingOrders, outletsList, currentUser, setCurrentUser, systemUsers } = useEcosystem();
 
   const navGroups: NavGroup[] = [
     {
@@ -76,6 +85,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
           icon: Store,
           badge: retailCart.length > 0 ? `${retailCart.length}` : null,
           badgeColor: 'bg-emerald-500 text-slate-950 font-bold',
+        },
+        {
+          id: 'PRICE_CHECKER' as NavTabId,
+          label: 'Station Cek Harga',
+          subtitle: 'Kiosk Barcode & Retail',
+          icon: ScanBarcode,
         },
         {
           id: 'GROSIR' as NavTabId,
@@ -141,6 +156,52 @@ export const Sidebar: React.FC<SidebarProps> = ({
           label: 'Pilar Rantai Pasok',
           subtitle: 'Pusat Sinergi Hub',
           icon: Boxes,
+          restrictedToKasir: true,
+        },
+        {
+          id: 'ESCROW_LEDGER' as NavTabId,
+          label: 'Escrow & Pay Ledger',
+          subtitle: 'Karantina 14 Hari & Buku Besar',
+          icon: Vault,
+          badge: 'Sprint 12',
+          badgeColor: 'bg-violet-500/20 text-violet-700 border border-violet-500/40',
+          restrictedToKasir: true,
+        },
+      ],
+    },
+    {
+      groupTitle: 'INVENTORI & LOGISTIK',
+      items: [
+        {
+          id: 'INVENTORY_CONTROL' as NavTabId,
+          label: 'Inventory Control',
+          subtitle: 'Tabel Umur & Cek Expired',
+          icon: Boxes,
+          badge: 'FEFO',
+          badgeColor: 'bg-emerald-500/20 text-emerald-700 border border-emerald-500/40',
+          restrictedToKasir: true,
+        },
+        {
+          id: 'LANDED_COST' as NavTabId,
+          label: 'Landed Cost Laut',
+          subtitle: 'Logistik, Kalkulator & PO',
+          icon: Ship,
+          badge: 'Sprint 8',
+          badgeColor: 'bg-indigo-500/20 text-indigo-700 border border-indigo-500/40',
+          restrictedToKasir: true,
+        },
+      ],
+    },
+    {
+      groupTitle: 'TATA KELOLA REGIONAL',
+      items: [
+        {
+          id: 'MULTI_OUTLET' as NavTabId,
+          label: 'Multi-Outlet & Cabang',
+          subtitle: 'Transfer Stok & Approval Harga',
+          icon: Building2,
+          badge: `${outletsList.length} Cabang`,
+          badgeColor: 'bg-blue-500/20 text-blue-700 border border-blue-500/40',
           restrictedToKasir: true,
         },
       ],
@@ -314,6 +375,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 >
                   <option value="SUPER_ADMIN" className="bg-white text-slate-900">
                     Super Admin (Owner)
+                  </option>
+                  <option value="REGIONAL_MANAGER" className="bg-white text-slate-900">
+                    Regional Manager (§8)
                   </option>
                   <option value="ADMIN_MANAGER" className="bg-white text-slate-900">
                     Admin Manager
